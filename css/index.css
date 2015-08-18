@@ -1,0 +1,18 @@
+.AuthorshipMarkers {
+  float: left;
+  width: 1cm;
+  height: calc(100% - 5em);
+  position: relative;
+  overflow-y: hidden;
+}
+
+.AuthorshipMarkers__Section {
+  position: absolute;
+  right: .1cm;
+}
+
+.AuthorshipMarkers__Marker {
+  height: 100%;
+  float: right;
+  width: 4px;
+}

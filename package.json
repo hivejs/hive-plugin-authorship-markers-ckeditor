@@ -1,0 +1,27 @@
+{
+  "name": "hive-plugin-html-authorship-markers",
+  "version": "0.0.1",
+  "description": "Authorship markers plugin for hive.js",
+  "main": "index.js",
+  "dependencies": {
+    "virtual-dom": "2.x"
+  , "dom-ot": "2.0.x"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hivejs/hive-plugin-html-authorship-markers.git"
+  },
+  "keywords": [
+    "hivejs",
+    "hive.js"
+  ],
+  "author": "Marcel Klehr <mklehr@gmx.net>",
+  "license": {"license": "GPL-3.0"},
+  "bugs": {
+    "url": "https://github.com/hivejs/hive-plugin-html-authorship-markers/issues"
+  },
+  "homepage": "https://github.com/hivejs/hive-plugin-html-authorship-markers"
+}
