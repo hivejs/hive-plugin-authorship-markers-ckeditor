@@ -34,13 +34,13 @@ function setup(plugin, imports, register) {
   ui.page('/:id',
   function loadClient(ctx, next) {
     if(ctx.document.type !== 'html') return next()
-    
+
     var cke_inner = document.querySelector('#editor .cke_inner')
       , tree = h('div.AuthorshipMarkers')
       , container = vdom.create(tree)
-    
+
     cke_inner.insertBefore(container, cke_inner.childNodes[1])
-    
+
     ctx.editableDocument.on('update', function(edit) {
       setTimeout(function() {
         edit.changeset.forEach(function(op) {
@@ -56,40 +56,44 @@ function setup(plugin, imports, register) {
         }).then(function() {}, function(er) {throw er})
       }, 0)
     })
-    
+
     ctx.editableDocument.on('edit', function() {
       co(function*() {
         yield render()
       }).then(function() {}, function(er) {throw er})
     })
-    
+
     var editorWindow = ctx.editableDocument.rootNode.ownerDocument.defaultView
     editorWindow.onscroll = function() {
       container.scrollTop = editorWindow.scrollY
     }
-    
-    function* render() {
-      var data = []
-      seekAuthors(ctx.editableDocument.rootNode, data)
 
-      var newtree = h('div.AuthorshipMarkers', yield data.map(function*(section) {
+    function* render() {
+      var sections = seekAuthors(ctx.editableDocument.rootNode)
+      var sectionsByAuthor = sortByAuthors(sections)
+
+      var newtree = h('div.AuthorshipMarkers', yield Object.keys(sectionsByAuthor).map(function*(author) {
         return h('div.AuthorshipMarkers__Section'
-        , {style: {height: section.height+'px', top: section.y+'px'}}
-        , yield Object.keys(section.authors).map(function*(author) {
+        , yield sectionsByAuthor[author].map(function*(section) {
             author = yield function(cb) {
               ctx.client.user.get(author, cb)
             }
-            return h('div.AuthorshipMarkers__Marker', {style: {'border-color': author.color || '#777'}})
+            return h('div.AuthorshipMarkers__Marker', {style: {
+                'border-color': author.color || '#777'
+              , 'height': section.height+'px'
+              , 'top': section.y+'px'
+              }
+            })
           })
         )
       }))
-      
+
       var patches = vdom.diff(tree, newtree)
       vdom.patch(container, patches)
       tree = newtree
       container.scrollTop = editorWindow.scrollY
     }
-    
+
     next()
   })
 
@@ -97,6 +101,7 @@ function setup(plugin, imports, register) {
 }
 
 function seekAuthors(el, data) {
+  if(!data) data = []
   for(var i=0; i<el.children.length; i++) {
     var node = el.children[i]
       , authors = getAuthorsOfNode(node)
@@ -109,6 +114,17 @@ function seekAuthors(el, data) {
     data.push(obj)
     seekAuthors(node, data)
   }
+  return data
+}
+function sortByAuthors(sections) {
+  var sectionsByAuthor = {}
+  sections.forEach(function(section) {
+    Object.keys(section.authors).forEach(function(author) {
+      if(!sectionsByAuthor[author]) sectionsByAuthor[author] = []
+      sectionsByAuthor[author].push({y: section.y, height: section.height})
+    })
+  })
+  return sectionsByAuthor
 }
 /*
 function flattenAuthorData(data) {
@@ -135,11 +151,11 @@ function flattenAuthorData(data) {
         currentY += newobj.height
       }else
       if(intersectingObj.y+intersectingObj.height < obj.y) {
-      
+
       }
     })
   })
-  
+
   function intersect(obj1, obj2) {
     // obj1 is below obj2
     if(obj1.y > obj2.y+obj2.height) return false
@@ -164,9 +180,9 @@ function mergeAuthors(au1, au2) {
 function addAuthorToNode(node, userId) {
   if(!(node instanceof Element)) node = node.parentNode
   var authors = getAuthorsOfNode(node)
-  
+
   authors[userId] = true
-  
+
   node.setAttribute('data-author', Object.keys(authors).join(' '))
 }
 
@@ -175,7 +191,7 @@ function getAuthorsOfNode(node) {
     , authors
   if(!authorstring) authors = {}
   else authors = parseAuthors(authorstring)
-  
+
   return authors
 }
 
@@ -186,6 +202,6 @@ function parseAuthors(authorString) {
   .forEach(function(authorId) {
     authors[authorId] = true
   })
-  
+
   return authors
 }
