@@ -31,9 +31,8 @@ function setup(plugin, imports, register) {
   link.setAttribute('href', 'static/hive-plugin-html-authorship-markers/css/index.css')
   document.head.appendChild(link)
 
-  ui.page('/:id',
-  function loadClient(ctx, next) {
-    if(ctx.document.type !== 'html') return next()
+  ui.page('/:id', function(ctx, next) {
+    if(ctx.document.get('type') !== 'html') return next()
 
     var cke_inner = document.querySelector('#editor .cke_inner')
       , tree = h('div.AuthorshipMarkers')
