@@ -79,7 +79,7 @@ function setup(plugin, imports, register) {
             author = yield function(cb) {
               ctx.client.user.get(author, cb)
             }
-            return h('div.AuthorshipMarkers__Marker', {style: {'border-left': '2px solid '+(author.color || '#777')}})
+            return h('div.AuthorshipMarkers__Marker', {style: {'border-color': author.color || '#777'}})
           })
         )
       }))

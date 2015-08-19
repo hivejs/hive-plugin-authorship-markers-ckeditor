@@ -15,4 +15,5 @@
   height: 100%;
   float: right;
   width: 4px;
+  border-left: transparent 2px solid;
 }
