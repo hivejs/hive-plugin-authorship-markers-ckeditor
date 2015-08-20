@@ -20,12 +20,13 @@ var vdom = require('virtual-dom')
   , h = vdom.h
   , nodeAt = require('dom-ot/lib/ops/node-at')
   , co = require('co')
-  , Backbone = require('backbone')
 
 module.exports = setup
-module.exports.consumes = ['ui', 'editor']
+module.exports.consumes = ['ui', 'editor', 'models','hooks']
 function setup(plugin, imports, register) {
   var ui = imports.ui
+  , hooks = imports.hooks
+  , Backbone = imports.models.Backbone
 
   var link = document.createElement('link')
   link.setAttribute('rel', 'stylesheet')
@@ -54,7 +55,7 @@ function setup(plugin, imports, register) {
           if(op.to) path = op.to
           if(!path) return
           var node = nodeAt(path, ctx.editableDocument.rootNode)
-          addAuthorToNode(node, ctx.user.id)
+          addAuthorToNode(node, ctx.user.get('id'))
         })
         co(function*() {
           // ... re-collect attributions and re-render the markers
@@ -94,6 +95,7 @@ function setup(plugin, imports, register) {
       // load any unknown author/user objects
       yield Object.keys(sectionsByAuthor)
       .map(function*(authorId) {
+        if(authorId == ctx.user.get('id')) return authors.add(ctx.user)
         if(authors.get(authorId)) return
         var author = new ctx.models.user({id: authorId})
         yield function(cb) {
@@ -104,6 +106,9 @@ function setup(plugin, imports, register) {
         }
 
         authors.add(author)
+        setInterval(function() {
+          author.fetch()
+        }, 10000)
       })
 
       return sectionsByAuthor
