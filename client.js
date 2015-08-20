@@ -45,6 +45,17 @@ function setup(plugin, imports, register) {
 
     cke_inner.insertBefore(container, cke_inner.childNodes[1])
 
+    // when the document has been initialized...
+    ctx.editableDocument.on('init', function() {
+      setTimeout(function() {
+        co(function*() {
+          // ... collect attributions and render the markers
+          sections = yield collectAttributions()
+          render(sections)
+        }).then(function() {}, function(er) {throw er})
+      }, 0)
+    })
+
     // If this user makes changes...
     ctx.editableDocument.on('update', function(edit) {
       setTimeout(function() {
