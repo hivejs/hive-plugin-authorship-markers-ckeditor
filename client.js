@@ -182,56 +182,6 @@ function sortByAuthors(sections) {
   })
   return sectionsByAuthor
 }
-/*
-function flattenAuthorData(data) {
-  var flattened = []
-
-  var sorted = data
-  .sort(function(obj1, obj2) {
-    return obj1.y >= obj2.y ? 1 : -1
-  })
-  sorted
-  .forEach(function(obj) {
-    var intersecting = sorted.filter(intersect.bind(null, obj))
-    var currentY = 0
-    intersecting.forEach(function(intersectingObj) {
-      var newobj
-      if(intersectingObj.y > obj.y) {
-        var newobj = {
-          y: obj.y,
-        , height: intersectingObj.height - (obj.y - intersectingObj.y)
-        , authors: mergeAuthors(intersectingObj.authors, obj.authors)
-        }
-        flattened.push(newobj)
-        intersectingObj.flattened = true
-        currentY += newobj.height
-      }else
-      if(intersectingObj.y+intersectingObj.height < obj.y) {
-
-      }
-    })
-  })
-
-  function intersect(obj1, obj2) {
-    // obj1 is below obj2
-    if(obj1.y > obj2.y+obj2.height) return false
-    // obj2 is below obj1
-    if(obj2.y > obj1.y+obj1.height) return false
-
-    return true
-  }
-}
-
-function mergeAuthors(au1, au2) {
-  var obj = {}
-  for(var author in au1) {
-    obj[author] = true
-  }
-  for(var author in au2) {
-    obj[author] = true
-  }
-  return obj
-}*/
 
 function addAuthorToNode(node, userId) {
   if(!(node instanceof Element)) node = node.parentNode
