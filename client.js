@@ -66,6 +66,7 @@ function setup(plugin, imports, register) {
           if(op.to) path = op.to
           if(!path) return
           var node = nodeAt(path, ctx.editableDocument.rootNode)
+          if(op.to && !op.from) resetAuthorsOfNode(node)
           addAuthorToNode(node, ctx.user.get('id'))
         })
         co(function*() {
@@ -201,6 +202,12 @@ function addAuthorToNode(node, userId) {
   authors[userId] = true
 
   node.setAttribute('data-author', Object.keys(authors).join(' '))
+}
+
+function resetAuthorsOfNode(node) {
+  if(node instanceof Element) {
+    node.setAttribute('data-author', '')
+  }
 }
 
 function getAuthorsOfNode(node) {
