@@ -163,7 +163,7 @@ function seekAuthors(el, data) {
       , authors = getAuthorsOfNode(node)
       , boundingRect = node.getBoundingClientRect()
     var obj = {
-      y: boundingRect.y+node.ownerDocument.defaultView.scrollY
+      y: boundingRect.top+node.ownerDocument.defaultView.scrollY
     , height: boundingRect.height
     , authors: authors
     }
