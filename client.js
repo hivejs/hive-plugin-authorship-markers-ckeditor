@@ -136,6 +136,20 @@ function setup(plugin, imports, register) {
       container.scrollTop = editorWindow.scrollY
     }
 
+    hooks.on('plugin-presence:renderUser', function*(user, props, children) {
+      var style = props.style || (props.style = {})
+        , color = user.get('color') || '#777'
+      style['border-color'] = color
+      var input = h('input.btn.btn-default',
+        {attributes: {type: 'color', value: color}
+      , 'ev-change': function(evt) {
+          user.set('color', evt.currentTarget.value)
+          user.save()
+        }
+      })
+      if(user.get('id') == ctx.user.get('id')) children.push(input)
+    })
+
     next()
   })
 
