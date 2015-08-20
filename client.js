@@ -20,6 +20,7 @@ var vdom = require('virtual-dom')
   , h = vdom.h
   , nodeAt = require('dom-ot/lib/ops/node-at')
   , co = require('co')
+  , Backbone = require('backbone')
 
 module.exports = setup
 module.exports.consumes = ['ui', 'editor']
@@ -32,16 +33,21 @@ function setup(plugin, imports, register) {
   document.head.appendChild(link)
 
   ui.page('/:id', function(ctx, next) {
+    // This plugin works with the default html editor only
     if(ctx.document.get('type') !== 'html') return next()
 
     var cke_inner = document.querySelector('#editor .cke_inner')
       , tree = h('div.AuthorshipMarkers')
       , container = vdom.create(tree)
+      , authors = new (Backbone.Collection.extend({model: ctx.models.user}))()
+      , sections
 
     cke_inner.insertBefore(container, cke_inner.childNodes[1])
 
+    // If this user makes changes...
     ctx.editableDocument.on('update', function(edit) {
       setTimeout(function() {
+        // ...attribute the changes to them
         edit.changeset.forEach(function(op) {
           var path
           if(op.path) path = op.path
@@ -51,34 +57,65 @@ function setup(plugin, imports, register) {
           addAuthorToNode(node, ctx.user.id)
         })
         co(function*() {
-          yield render()
+          // ... re-collect attributions and re-render the markers
+          sections = yield collectAttributions()
+          render(sections)
         }).then(function() {}, function(er) {throw er})
       }, 0)
     })
 
+    // If someone else makes changes...
     ctx.editableDocument.on('edit', function() {
       co(function*() {
-        yield render()
+        // re-collect attributions and re-render the markers as well
+        sections = yield collectAttributions()
+        render(sections)
       }).then(function() {}, function(er) {throw er})
     })
 
+    // If the main editor window is scrolled, scroll the markers, too
     var editorWindow = ctx.editableDocument.rootNode.ownerDocument.defaultView
     editorWindow.onscroll = function() {
       container.scrollTop = editorWindow.scrollY
     }
 
-    function* render() {
+    // If a color changes only re-render the markers
+    authors.on('change:color', function(){
+      render(sections)
+    })
+
+    function* collectAttributions() {
+      // Extract authorship sections from the document
       var sections = seekAuthors(ctx.editableDocument.rootNode)
+
+      // sort thesee section by author
       var sectionsByAuthor = sortByAuthors(sections)
 
-      var newtree = h('div.AuthorshipMarkers', yield Object.keys(sectionsByAuthor).map(function*(author) {
+      // load any unknown author/user objects
+      yield Object.keys(sectionsByAuthor)
+      .map(function*(authorId) {
+        if(authors.get(authorId)) return
+        var author = new ctx.models.user({id: authorId})
+        yield function(cb) {
+          author.fetch({
+            success: function(){cb()}
+          , error: function(m, resp){cb(new Error('Server returned '+resp.status))}
+          })
+        }
+
+        authors.add(author)
+      })
+
+      return sectionsByAuthor
+    }
+
+    function render(sectionsByAuthor) {
+      // Visualize authorship by drawing lines for each author
+      var newtree = h('div.AuthorshipMarkers', Object.keys(sectionsByAuthor).map(function(author) {
         return h('div.AuthorshipMarkers__Section'
-        , yield sectionsByAuthor[author].map(function*(section) {
-            author = yield function(cb) {
-              ctx.client.user.get(author, cb)
-            }
+        , sectionsByAuthor[author].map(function(section) {
             return h('div.AuthorshipMarkers__Marker', {style: {
-                'border-color': author.color || '#777'
+                'border-color': authors.get(author).get('color') || '#777'
               , 'height': section.height+'px'
               , 'top': section.y+'px'
               }
@@ -87,6 +124,7 @@ function setup(plugin, imports, register) {
         )
       }))
 
+      // Construct the diff between the new and the old drawing and update the live dom tree
       var patches = vdom.diff(tree, newtree)
       vdom.patch(container, patches)
       tree = newtree
