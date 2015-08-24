@@ -30,10 +30,10 @@ function setup(plugin, imports, register) {
 
   var link = document.createElement('link')
   link.setAttribute('rel', 'stylesheet')
-  link.setAttribute('href', 'static/hive-plugin-html-authorship-markers/css/index.css')
+  link.setAttribute('href', ui.baseURL+'/static/hive-plugin-html-authorship-markers/css/index.css')
   document.head.appendChild(link)
 
-  ui.page('/:id', function(ctx, next) {
+  ui.page('/documents/:id', function(ctx, next) {
     // This plugin works with the default html editor only
     if(ctx.document.get('type') !== 'html') return next()
 
