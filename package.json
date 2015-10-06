@@ -1,11 +1,11 @@
 {
   "name": "hive-plugin-ckeditor-authorship-markers",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Authorship markers plugin for hive.js",
   "main": "index.js",
   "dependencies": {
-    "virtual-dom": "2.x"
-  , "dom-ot": "2.0.x"
+    "virtual-dom": "2.x",
+    "dom-ot": "2.0.x"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -19,7 +19,9 @@
     "hive.js"
   ],
   "author": "Marcel Klehr <mklehr@gmx.net>",
-  "license": {"license": "GPL-3.0"},
+  "license": {
+    "license": "GPL-3.0"
+  },
   "bugs": {
     "url": "https://github.com/hivejs/hive-plugin-ckeditor-authorship-markers/issues"
   },
