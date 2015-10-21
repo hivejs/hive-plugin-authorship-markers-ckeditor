@@ -30,7 +30,7 @@ function setup(plugin, imports, register) {
 
   var link = document.createElement('link')
   link.setAttribute('rel', 'stylesheet')
-  link.setAttribute('href', ui.baseURL+'/static/hive-plugin-ckeditor-authorship-markers/css/index.css')
+  link.setAttribute('href', ui.baseURL+'/static/hive-plugin-authorship-markers-ckeditor/css/index.css')
   document.head.appendChild(link)
 
   ui.page('/documents/:id', function(ctx, next) {
@@ -88,9 +88,9 @@ function setup(plugin, imports, register) {
 
     // If the main editor window is scrolled, scroll the markers, too
     var editorWindow = ctx.editableDocument.rootNode.ownerDocument.defaultView
-    editorWindow.onscroll = function() {
+    editorWindow.addEventListener('scroll', function() {
       container.scrollTop = editorWindow.scrollY
-    }
+    })
 
     // If a color changes only re-render the markers
     authors.on('change:color', function(){
