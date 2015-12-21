@@ -19,6 +19,10 @@
 var vdom = require('virtual-dom')
   , h = vdom.h
   , nodeAt = require('dom-ot/lib/ops/node-at')
+  , ObservEmitter = require('observ-emitter')
+  , ObservStruct = require('observ-struct')
+  , ObservVarhash = require('observ-varhash')
+  , ObservValue = require('observ')
   , co = require('co')
 
 module.exports = setup
@@ -26,7 +30,7 @@ module.exports.consumes = ['ui', 'editor', 'models','hooks']
 function setup(plugin, imports, register) {
   var ui = imports.ui
   , hooks = imports.hooks
-  , Backbone = imports.models.Backbone
+  , models = imports.models
 
   var link = document.createElement('link')
   link.setAttribute('rel', 'stylesheet')
@@ -35,118 +39,96 @@ function setup(plugin, imports, register) {
 
   ui.page('/documents/:id', function(ctx, next) {
     // This plugin works with the default html editor only
-    if(ctx.document.get('type') !== 'html') return next()
+    if(ui.state.document.get('type') !== 'html') return next()
 
-    var cke_inner = document.querySelector('#editor .cke_inner')
-      , tree = h('div.AuthorshipMarkers')
-      , container = vdom.create(tree)
-      , authors = new (Backbone.Collection.extend({model: ctx.models.user}))()
-      , sections
+    // state
+    ui.state.put('authorshipMarkers', ObservStruct({
+      authors: ObservVarhash()
+    , attributions: ObservValue({})
+    }))
 
-    cke_inner.insertBefore(container, cke_inner.childNodes[1])
+    var state = ui.state.authorshipMarkers
+      , editorRoot
 
-    // when the document has been initialized...
-    ctx.editableDocument.on('init', function() {
-      setTimeout(function() {
-        co(function*() {
-          // ... collect attributions and render the markers
-          sections = yield collectAttributions()
-          render(sections)
-        }).then(function() {}, function(er) {throw er})
-      }, 0)
-    })
-
-    // If this user makes changes...
-    ctx.editableDocument.on('update', function(edit) {
-      setTimeout(function() {
-        // ...attribute the changes to them
-        edit.changeset.forEach(function(op) {
-          var path
-          if(op.path) path = op.path
-          if(op.to) path = op.to
-          if(!path) return
-          var node = nodeAt(path, ctx.editableDocument.rootNode)
-          if(op.to && !op.from) resetAuthorsOfNode(node)
-          addAuthorToNode(node, ctx.user.get('id'))
-        })
-        co(function*() {
-          // ... re-collect attributions and re-render the markers
-          sections = yield collectAttributions()
-          render(sections)
-        }).then(function() {}, function(er) {throw er})
-      }, 0)
-    })
-
-    // If someone else makes changes...
-    ctx.editableDocument.on('edit', function() {
+    ui.state.events.put('authorshipMarkers:attributionsChanged', ObservEmitter())
+    ui.state.events['authorshipMarkers:attributionsChanged'].listen(function() {
       co(function*() {
-        // re-collect attributions and re-render the markers as well
-        sections = yield collectAttributions()
-        render(sections)
+        // re-collect attributions
+        var sectionsByAuthor = collectAttributions(editorRoot)
+
+        // load any unknown author/user objects
+        yield Object.keys(sectionsByAuthor)
+        .map(function*(authorId) {
+          if(state.authors[authorId]) return
+          if(authorId == ui.state.user.get('id')) {
+            return state.authors.put(ui.state.user.get('id'), ui.state.user)
+          }
+          var author = new ctx.models.user({id: authorId})
+          yield function(cb) {
+            author.fetch({
+              success: function(){cb()}
+            , error: function(m, resp){cb(new Error('Server returned '+resp.status))}
+            })
+          }
+          // stememberore author
+          state.authors.put(author.get('id'), models.toObserv(author))
+        })
+        // update sections
+        state.attributions.set(sectionsByAuthor)
       }).then(function() {}, function(er) {throw er})
     })
 
-    // If the main editor window is scrolled, scroll the markers, too
-    var editorWindow = ctx.editableDocument.rootNode.ownerDocument.defaultView
-    editorWindow.addEventListener('scroll', function() {
-      container.scrollTop = editorWindow.scrollY
-    })
+    ui.state.events['editor:load'].listen(function(editableDocument) {
+      var tree = render(state())
+        , rootNode = vdom.create(tree)
 
-    // If a color changes only re-render the markers
-    authors.on('change:color', function(){
-      render(sections)
-    })
+      editorRoot = editableDocument.rootNode
 
-    function* collectAttributions() {
-      // Extract authorship sections from the document
-      var sections = seekAuthors(ctx.editableDocument.rootNode)
+      var cke_inner = document.querySelector('#editor .cke_inner')
+      cke_inner.insertBefore(rootNode, cke_inner.childNodes[1])
 
-      // sort thesee section by author
-      var sectionsByAuthor = sortByAuthors(sections)
-
-      // load any unknown author/user objects
-      yield Object.keys(sectionsByAuthor)
-      .map(function*(authorId) {
-        if(authorId == ctx.user.get('id')) return authors.add(ctx.user)
-        if(authors.get(authorId)) return
-        var author = new ctx.models.user({id: authorId})
-        yield function(cb) {
-          author.fetch({
-            success: function(){cb()}
-          , error: function(m, resp){cb(new Error('Server returned '+resp.status))}
-          })
-        }
-
-        authors.add(author)
-        setInterval(function() {
-          author.fetch()
-        }, 10000)
+      state(function(snapshot) {
+        var newtree = render(snapshot)
+        var patches = vdom.diff(tree, newtree)
+        vdom.patch(rootNode, patches)
+        tree = newtree
+        rootNode.scrollTop = editorWindow.scrollY
       })
 
-      return sectionsByAuthor
-    }
+      // when the document has been initialized
+      editableDocument.on('init', function() {
+        ui.state.events['authorshipMarkers:attributionsChanged'].emit()
+      })
 
-    function render(sectionsByAuthor) {
-      // Visualize authorship by drawing lines for each author
-      var newtree = h('div.AuthorshipMarkers', Object.keys(sectionsByAuthor).map(function(author) {
-        return h('div.AuthorshipMarkers__Section'
-        , sectionsByAuthor[author].map(function(section) {
-            return h('div.AuthorshipMarkers__Marker', {style: {
-                'border-color': authors.get(author).get('color') || '#777'
-              , 'height': section.height+'px'
-              , 'top': section.y+'px'
-              }
-            })
+      // If this user makes changes...
+      editableDocument.on('update', function(edit) {
+        setTimeout(function() {
+          // ...attribute the changes to them
+          edit.changeset.forEach(function(op) {
+            var path
+            if(op.path) path = op.path
+            if(op.to) path = op.to
+            if(!path) return
+            var node = nodeAt(path, ctx.editableDocument.rootNode)
+            if(op.to && !op.from) resetAuthorsOfNode(node)
+            addAuthorToNode(node, ui.state.user.get('id'))
           })
-        )
-      }))
+          ui.state.events['authorshipMarkers:attributionsChanged'].emit()
+        }, 0)
+      })
 
-      // Construct the diff between the new and the old drawing and update the live dom tree
-      var patches = vdom.diff(tree, newtree)
-      vdom.patch(container, patches)
-      tree = newtree
-      container.scrollTop = editorWindow.scrollY
-    }
+      // If someone else makes changes...
+      editableDocument.on('edit', function() {
+        ui.state.events['authorshipMarkers:attributionsChanged'].emit()
+      })
+
+      // If the main editor window is scrolled, scroll the markers, too
+      var editorWindow = editorRoot.ownerDocument.defaultView
+      editorWindow.addEventListener('scroll', function() {
+        rootNode.scrollTop = editorWindow.scrollY
+      })
+
+    })
 
     hooks.on('plugin-presence:renderUser', function*(user, props, children) {
       var style = props.style || (props.style = {})
@@ -159,13 +141,36 @@ function setup(plugin, imports, register) {
           user.save()
         }
       })
-      if(user.get('id') == ctx.user.get('id')) children.push(input)
+      if(user.get('id') == ui.state.user.get('id')) children.push(input)
     })
 
     next()
   })
 
   register()
+}
+
+function render(state) {
+  // Visualize authorship by drawing lines for each author
+  return h('div.AuthorshipMarkers', Object.keys(state.attributions).map(function(author) {
+    return h('div.AuthorshipMarkers__Section'
+    , state.attributions[author].map(function(section) {
+        return h('div.AuthorshipMarkers__Marker', {style: {
+            'border-color': state.authors[author].color || '#777'
+          , 'height': section.height+'px'
+          , 'top': section.y+'px'
+          }
+        })
+      })
+    )
+  }))
+}
+
+function collectAttributions(rootNode) {
+  // Extract authorship sections from the document
+  var sections = seekAuthors(rootNode)
+  var sectionsByAuthor = sortByAuthors(sections)
+  return sectionsByAuthor
 }
 
 function seekAuthors(el, data) {

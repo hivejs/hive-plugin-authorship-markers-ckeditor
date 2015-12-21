@@ -1,11 +1,15 @@
 {
   "name": "hive-plugin-authorship-markers-ckeditor",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Authorship markers plugin for hive.js",
   "main": "index.js",
   "dependencies": {
     "virtual-dom": "2.x",
-    "dom-ot": "2.0.x"
+    "dom-ot": "2.0.x",
+    "observ-varhash": "1.x",
+    "observ-emitter": "1.x",
+    "observ-struct": "6.x",
+    "observ": "0.2.x"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
