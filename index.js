@@ -25,8 +25,8 @@ function setup(plugin, imports, register) {
     , hooks = imports.hooks
 
   assets.registerModule(path.join(__dirname, 'client.js'))
-  assets.registerStaticDir(path.join(__dirname, 'css'))
-  
+  assets.registerStylesheet(path.join(__dirname, 'css/index.css'))
+
   hooks.on('models:load', function*(models) {
     models.user.attributes['color'] = 'string'
   })
