@@ -96,7 +96,7 @@ function setup(plugin, imports, register) {
         var patches = vdom.diff(tree, newtree)
         vdom.patch(rootNode, patches)
         tree = newtree
-        rootNode.scrollTop = editorWindow.scrollY
+        rootNode.scrollTop = editorRoot.scrollY
       })
 
       // when the document has been initialized
@@ -127,9 +127,8 @@ function setup(plugin, imports, register) {
       })
 
       // If the main editor window is scrolled, scroll the markers, too
-      var editor = editorRoot
-      editor.addEventListener('scroll', function() {
-        rootNode.scrollTop = editor.scrollTop
+      editorRoot.addEventListener('scroll', function() {
+        rootNode.scrollTop = editorRoot.scrollTop
       })
 
     })
@@ -141,7 +140,7 @@ function setup(plugin, imports, register) {
       style['border-color'] = color
 
       // Color picker if user === this user
-      if(user.id == ui.state.user.id) {
+      if(user.id == state.user.id) {
         var input = h('input.btn.btn-default',
           {attributes: {type: 'color', value: color}
         , 'ev-change': state.events['authorshipMarkers:setColor']
@@ -161,10 +160,14 @@ function render(state) {
   return h('div.AuthorshipMarkers', Object.keys(state.attributions).map(function(author) {
     return h('div.AuthorshipMarkers__Section'
     , state.attributions[author].map(function(section) {
-        return h('div.AuthorshipMarkers__Marker', {style: {
+        return h('div.AuthorshipMarkers__Marker', {
+          style: {
             'border-color': state.authors[author].color || '#777'
           , 'height': section.height+'px'
           , 'top': section.y+'px'
+          }
+        , attributes: {
+            title: state.authors[author].name
           }
         })
       })
