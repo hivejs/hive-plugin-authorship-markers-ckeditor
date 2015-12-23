@@ -26,11 +26,16 @@ var vdom = require('virtual-dom')
   , co = require('co')
 
 module.exports = setup
-module.exports.consumes = ['ui', 'editor', 'models','hooks']
+module.exports.consumes = ['ui', 'editor', 'models', 'hooks']
 function setup(plugin, imports, register) {
   var ui = imports.ui
-  , hooks = imports.hooks
   , models = imports.models
+  , hooks = imports.hooks
+
+  hooks.on('ui:initState', function* () {
+    ui.state.events.put('authorshipMarkers:attributionsChanged', ObservEmitter())
+    ui.state.events.put('authorshipMarkers:setColor', ObservEmitter())
+  })
 
   ui.page('/documents/:id', function(ctx, next) {
     // This plugin works with the default html editor only
@@ -45,7 +50,11 @@ function setup(plugin, imports, register) {
     var state = ui.state.authorshipMarkers
       , editorRoot
 
-    ui.state.events.put('authorshipMarkers:attributionsChanged', ObservEmitter())
+    ui.state.events['authorshipMarkers:setColor'].listen(function(evt) {
+      ui.state.user.set('color', evt.currentTarget.value)
+      ui.state.user.save()
+    })
+
     ui.state.events['authorshipMarkers:attributionsChanged'].listen(function() {
       co(function*() {
         // re-collect attributions
@@ -125,18 +134,20 @@ function setup(plugin, imports, register) {
 
     })
 
-    hooks.on('plugin-presence:renderUser', function*(user, props, children) {
+    ui.state.events['presence:renderUser'].listen(function(state, user, props, children) {
+      // Border color
       var style = props.style || (props.style = {})
-        , color = user.get('color') || '#777'
+        , color = user.color || '#777'
       style['border-color'] = color
-      var input = h('input.btn.btn-default',
-        {attributes: {type: 'color', value: color}
-      , 'ev-change': function(evt) {
-          user.set('color', evt.currentTarget.value)
-          user.save()
-        }
-      })
-      if(user.get('id') == ui.state.user.get('id')) children.push(input)
+
+      // Color picker if user === this user
+      if(user.id == ui.state.user.id) {
+        var input = h('input.btn.btn-default',
+          {attributes: {type: 'color', value: color}
+        , 'ev-change': state.events['authorshipMarkers:setColor']
+        })
+       children.push(input)
+      }
     })
 
     next()
