@@ -88,8 +88,8 @@ function setup(plugin, imports, register) {
 
       editorRoot = editableDocument.rootNode
 
-      var cke_inner = document.querySelector('#editor .cke_inner')
-      cke_inner.insertBefore(rootNode, cke_inner.childNodes[1])
+      var content = document.querySelector('.Editor__content')
+      content.insertBefore(rootNode, content.firstChild)
 
       state(function(snapshot) {
         var newtree = render(snapshot)
@@ -127,9 +127,9 @@ function setup(plugin, imports, register) {
       })
 
       // If the main editor window is scrolled, scroll the markers, too
-      var editorWindow = editorRoot.ownerDocument.defaultView
-      editorWindow.addEventListener('scroll', function() {
-        rootNode.scrollTop = editorWindow.scrollY
+      var editor = editorRoot
+      editor.addEventListener('scroll', function() {
+        rootNode.scrollTop = editor.scrollTop
       })
 
     })
@@ -179,19 +179,20 @@ function collectAttributions(rootNode) {
   return sectionsByAuthor
 }
 
-function seekAuthors(el, data) {
+function seekAuthors(root, el, data) {
   if(!data) data = []
+  if(!el) el = root
   for(var i=0; i<el.children.length; i++) {
     var node = el.children[i]
       , authors = getAuthorsOfNode(node)
       , boundingRect = node.getBoundingClientRect()
     var obj = {
-      y: boundingRect.top+node.ownerDocument.defaultView.scrollY
+      y: boundingRect.top-root.getBoundingClientRect().top
     , height: boundingRect.height
     , authors: authors
     }
     data.push(obj)
-    seekAuthors(node, data)
+    seekAuthors(root, node, data)
   }
   return data
 }
