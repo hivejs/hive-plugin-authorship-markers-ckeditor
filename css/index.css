@@ -3,6 +3,7 @@
   width: 1cm;
   height: calc(100% - 5em);
   overflow-y: hidden;
+  padding-right: 2px;
 }
 
 .AuthorshipMarkers__Section {
