@@ -19,160 +19,203 @@
 var vdom = require('virtual-dom')
   , h = vdom.h
   , nodeAt = require('dom-ot/lib/ops/node-at')
-  , ObservEmitter = require('observ-emitter')
-  , ObservStruct = require('observ-struct')
-  , ObservVarhash = require('observ-varhash')
-  , ObservValue = require('observ')
-  , co = require('co')
+  , AtomicEmitter = require('atomic-emitter')
+
+const SET_COLOR = 'AUTHORSHIPMARKERSCKEDITOR_SET_COLOR'
+const LOAD_USER = 'AUTHORSHIPMARKERSCKEDITOR_LOAD_USER'
+const UPDATE_ATTRIBUTIONS = 'AUTHORSHIPMARKERSCKEDITOR_UPDATE_ATTRIBUTIONSR'
 
 module.exports = setup
-module.exports.consumes = ['ui', 'editor', 'models', 'hooks']
+module.exports.consumes = ['ui', 'editor', 'api', 'presence']
+module.exports.provides = ['authorshipMarkersCkeditor']
 function setup(plugin, imports, register) {
   var ui = imports.ui
-  , models = imports.models
-  , hooks = imports.hooks
+    , editor = imports.editor
+    , api = imports.api
+    , presence = imports.presence
 
-  hooks.on('ui:initState', function* () {
-    ui.state.events.put('authorshipMarkers:attributionsChanged', ObservEmitter())
-    ui.state.events.put('authorshipMarkers:setColor', ObservEmitter())
+  ui.reduxReducerMap.authorshipMarkersCkeditor = reducer
+  function reducer(state, action) {
+    if(!state) {
+      return {
+        authors: {}
+      , attributions: {}
+      }
+    }
+    if(LOAD_USER === action.type) {
+      return {...state, authors: {
+        ...state.authors
+      , [action.payload.id]: action.payload
+      }}
+    }
+    if(UPDATE_ATTRIBUTIONS === action.type) {
+      return {...state, attributions: action.payload}
+    }
+    if(SET_COLOR === action.type) {
+      return {...state, authors: {
+        ...state.authors
+      , [action.id]: {...state.authors[action.id], color: action.payload}
+      }}
+    }
+    return state
+  }
+
+  ui.reduxRootReducers.push((state, action) => {
+    if(SET_COLOR === action.type) {
+      return {...state, session: {
+        ...state.session
+      , user: {...state.session.user, color: action.payload}
+      }}
+    }
+    return state
   })
 
-  ui.page('/documents/:id', function(ctx, next) {
+  var authorshipMarkers = {
+    action_setColor: function*(color) {
+      var state = ui.store.getState()
+      yield api.action_user_update(state.session.user.id, {...state.session.user, color})
+      yield {type: SET_COLOR, payload: color, id: state.session.user.id}
+    }
+  , action_loadUser: function*(userId) {
+      var user = yield api.action_user_get(userId)
+      return yield {type: LOAD_USER, payload: user}
+    }
+  , action_updateAttributions: function(attributions) {
+      return {type: UPDATE_ATTRIBUTIONS, payload: attributions}
+    }
+  , attributionsChanged: AtomicEmitter()
+  }
+
+
+  editor.onLoad((editableDocument, broadcast) => {
     // This plugin works with the default html editor only
-    if(ui.state.document.get('type') !== 'html') return next()
+    if(ui.store.getState().editor.editor !== 'CKeditor') return
 
-    // state
-    ui.state.put('authorshipMarkers', ObservStruct({
-      authors: ObservVarhash()
-    , attributions: ObservValue({})
-    }))
+    ui.store.dispatch({type: LOAD_USER
+    , payload: ui.store.getState().session.user})
 
-    var state = ui.state.authorshipMarkers
-      , editorRoot
+    var editorRoot = editableDocument.rootNode
 
-    ui.state.events['authorshipMarkers:setColor'].listen(function(evt) {
-      ui.state.user.set('color', evt.currentTarget.value)
-      ui.state.user.save()
+
+    // Setup the rendering environment
+
+    var tree = render(ui.store)
+      , rootNode = vdom.create(tree)
+
+    ui.store.subscribe(_ => {
+      var newtree = render(ui.store)
+      var patches = vdom.diff(tree, newtree)
+      vdom.patch(rootNode, patches)
+      tree = newtree
     })
 
-    ui.state.events['authorshipMarkers:attributionsChanged'].listen(function() {
-      co(function*() {
-        // re-collect attributions
-        var sectionsByAuthor = collectAttributions(editorRoot)
+    var content = document.querySelector('.Editor__content')
+    content.insertBefore(rootNode, content.firstChild)
 
-        // load any unknown author/user objects
-        yield Object.keys(sectionsByAuthor)
-        .map(function*(authorId) {
-          if(state.authors[authorId]) return
-          if(authorId == ui.state.user.get('id')) {
-            return state.authors.put(ui.state.user.get('id'), ui.state.user)
-          }
-          var author = new ctx.models.user({id: authorId})
-          yield function(cb) {
-            author.fetch({
-              success: function(){cb()}
-            , error: function(m, resp){cb(new Error('Server returned '+resp.status))}
-            })
-          }
-          // stememberore author
-          state.authors.put(author.get('id'), models.toObserv(author))
+    // If the main editor window is scrolled, scroll the markers, too
+    editorRoot.addEventListener('scroll', function() {
+      rootNode.scrollTop = editorRoot.scrollTop
+    })
+
+    setInterval(function() {
+      var state = ui.store.getState().authorshipMarkersCkeditor
+      Object.keys(state.authors)
+      .map(function(authorId) {
+        return ui.store.dispatch(authorshipMarkers.action_loadUser(authorId))
+      })
+    }, 10000)
+
+
+    // Wire up attribution collection
+
+    // on init
+    editableDocument.on('init', authorshipMarkers.attributionsChanged.emit)
+
+    // if this user makes changes
+    editableDocument.on('update', function(edit) {
+      setTimeout(function() {
+        // ...attribute the changes to them
+        edit.changeset.forEach(function(op) {
+          var path
+          if(op.path) path = op.path
+          if(op.to) path = op.to
+          if(!path) return
+          var node = nodeAt(path, editableDocument.rootNode)
+          if(op.to && !op.from) resetAuthorsOfNode(node)
+          addAuthorToNode(node, ui.store.getState().session.user.id)
         })
-        // update sections
-        state.attributions.set(sectionsByAuthor)
-      }).then(function() {}, function(er) {throw er})
+        authorshipMarkers.attributionsChanged.emit()
+      }, 0)
     })
 
-    ui.state.events['editor:load'].listen(function(editableDocument) {
-      var tree = render(state())
-        , rootNode = vdom.create(tree)
+    // if someone else makes changes...
+    editableDocument.on('edit', authorshipMarkers.attributionsChanged.emit)
 
-      editorRoot = editableDocument.rootNode
+    authorshipMarkers.attributionsChanged(function() {
+      var state = ui.store.getState().authorshipMarkersCkeditor
 
-      var content = document.querySelector('.Editor__content')
-      content.insertBefore(rootNode, content.firstChild)
+      // re-collect attributions
+      var sectionsByAuthor = collectAttributions(editorRoot)
 
-      state(function(snapshot) {
-        var newtree = render(snapshot)
-        var patches = vdom.diff(tree, newtree)
-        vdom.patch(rootNode, patches)
-        tree = newtree
-        rootNode.scrollTop = editorRoot.scrollY
+      // load any unknown author/user objects
+      Promise.all(
+        Object.keys(sectionsByAuthor)
+        .map(function(authorId) {
+          if(state.authors[authorId]) return Promise.resolve()
+          return ui.store.dispatch(authorshipMarkers.action_loadUser(authorId))
+        })
+      ).then(function() {
+        ui.store.dispatch(
+          authorshipMarkers.action_updateAttributions(sectionsByAuthor)
+        )
       })
-
-      // when the document has been initialized
-      editableDocument.on('init', function() {
-        ui.state.events['authorshipMarkers:attributionsChanged'].emit()
-      })
-
-      // If this user makes changes...
-      editableDocument.on('update', function(edit) {
-        setTimeout(function() {
-          // ...attribute the changes to them
-          edit.changeset.forEach(function(op) {
-            var path
-            if(op.path) path = op.path
-            if(op.to) path = op.to
-            if(!path) return
-            var node = nodeAt(path, ctx.editableDocument.rootNode)
-            if(op.to && !op.from) resetAuthorsOfNode(node)
-            addAuthorToNode(node, ui.state.user.get('id'))
-          })
-          ui.state.events['authorshipMarkers:attributionsChanged'].emit()
-        }, 0)
-      })
-
-      // If someone else makes changes...
-      editableDocument.on('edit', function() {
-        ui.state.events['authorshipMarkers:attributionsChanged'].emit()
-      })
-
-      // If the main editor window is scrolled, scroll the markers, too
-      editorRoot.addEventListener('scroll', function() {
-        rootNode.scrollTop = editorRoot.scrollTop
-      })
-
     })
 
-    ui.state.events['presence:renderUser'].listen(function(state, user, props, children) {
+
+    presence.onRenderUser(function(store, user, props, children) {
+      var state = store.getState()
       // Border color
       var style = props.style || (props.style = {})
         , color = user.color || '#777'
       style['border-color'] = color
 
       // Color picker if user === this user
-      if(user.id == state.user.id) {
+      if(user.id == state.session.user.id) {
         var input = h('input.btn.btn-default',
-          {attributes: {type: 'color', value: color}
-        , 'ev-change': state.events['authorshipMarkers:setColor']
+        { attributes: {type: 'color', value: color}
+        , 'ev-change': evt => {
+            store.dispatch(authorshipMarkers.action_setColor(evt.currentTarget.value))
+          }
         })
        children.push(input)
       }
     })
-
-    next()
   })
 
-  register()
+  register(null, {authorshipMarkersCkeditor: authorshipMarkers})
 }
 
-function render(state) {
+function render(store) {
+  var state = store.getState().authorshipMarkersCkeditor
   // Visualize authorship by drawing lines for each author
-  return h('div.AuthorshipMarkers', Object.keys(state.attributions).map(function(author) {
-    return h('div.AuthorshipMarkers__Section'
-    , state.attributions[author].map(function(section) {
-        return h('div.AuthorshipMarkers__Marker', {
-          style: {
-            'border-color': state.authors[author].color || '#777'
-          , 'height': section.height+'px'
-          , 'top': section.y+'px'
-          }
-        , attributes: {
-            title: state.authors[author].name
-          }
+  return h('div.AuthorshipMarkers',
+    Object.keys(state.attributions).map((author) => {
+      return h('div.AuthorshipMarkers__Section'
+      , state.attributions[author].map(function(section) {
+          return h('div.AuthorshipMarkers__Marker', {
+            style: {
+              'border-color': state.authors[author].color || '#777'
+            , 'height': section.height+'px'
+            , 'top': section.y+'px'
+            }
+          , attributes: {
+              title: state.authors[author].name
+            }
+          })
         })
-      })
-    )
-  }))
+      )
+    })
+  )
 }
 
 function collectAttributions(rootNode) {

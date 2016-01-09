@@ -6,10 +6,7 @@
   "dependencies": {
     "virtual-dom": "2.x",
     "dom-ot": "2.0.x",
-    "observ-varhash": "1.x",
-    "observ-emitter": "1.x",
-    "observ-struct": "6.x",
-    "observ": "0.2.x"
+    "atomic-emitter": "3.x"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
