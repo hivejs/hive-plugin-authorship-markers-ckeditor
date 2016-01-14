@@ -5,7 +5,7 @@
   "main": "index.js",
   "dependencies": {
     "virtual-dom": "2.x",
-    "dom-ot": "2.0.x",
+    "domnode-at-path": "1.x",
     "atomic-emitter": "3.x"
   },
   "scripts": {

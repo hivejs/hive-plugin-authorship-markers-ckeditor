@@ -18,7 +18,7 @@
 
 var vdom = require('virtual-dom')
   , h = vdom.h
-  , nodeAt = require('dom-ot/lib/ops/node-at')
+  , nodeAt = require('domnode-at-path')
   , AtomicEmitter = require('atomic-emitter')
 
 const SET_COLOR = 'AUTHORSHIPMARKERSCKEDITOR_SET_COLOR'
