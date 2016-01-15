@@ -87,7 +87,7 @@ function setup(plugin, imports, register) {
   }
 
 
-  editor.onLoad((editableDocument, broadcast) => {
+  editor.onLoad((editableDocument, broadcast, onClose) => {
     // This plugin works with the default html editor only
     if(ui.store.getState().editor.editor !== 'CKeditor') return
 
@@ -102,7 +102,7 @@ function setup(plugin, imports, register) {
     var tree = render(ui.store)
       , rootNode = vdom.create(tree)
 
-    ui.store.subscribe(_ => {
+    var dispose = ui.store.subscribe(_ => {
       var newtree = render(ui.store)
       var patches = vdom.diff(tree, newtree)
       vdom.patch(rootNode, patches)
@@ -113,11 +113,11 @@ function setup(plugin, imports, register) {
     content.insertBefore(rootNode, content.firstChild)
 
     // If the main editor window is scrolled, scroll the markers, too
-    editorRoot.addEventListener('scroll', function() {
+    editorRoot.addEventListener('scroll', function onscroll() {
       rootNode.scrollTop = editorRoot.scrollTop
     })
 
-    setInterval(function() {
+    var interval = setInterval(function() {
       var state = ui.store.getState().authorshipMarkersCkeditor
       Object.keys(state.authors)
       .map(function(authorId) {
@@ -151,7 +151,7 @@ function setup(plugin, imports, register) {
     // if someone else makes changes...
     editableDocument.on('edit', authorshipMarkers.attributionsChanged.emit)
 
-    authorshipMarkers.attributionsChanged(function() {
+    var dispose2 = authorshipMarkers.attributionsChanged(function() {
       var state = ui.store.getState().authorshipMarkersCkeditor
 
       // re-collect attributions
@@ -171,25 +171,31 @@ function setup(plugin, imports, register) {
       })
     })
 
-
-    presence.onRenderUser(function(store, user, props, children) {
-      var state = store.getState()
-      // Border color
-      var style = props.style || (props.style = {})
-        , color = user.color || '#777'
-      style['border-color'] = color
-
-      // Color picker if user === this user
-      if(user.id == state.session.user.id) {
-        var input = h('input.btn.btn-default',
-        { attributes: {type: 'color', value: color}
-        , 'ev-change': evt => {
-            store.dispatch(authorshipMarkers.action_setColor(evt.currentTarget.value))
-          }
-        })
-       children.push(input)
-      }
+    onClose(_=> {
+      dispose()
+      dispose2()
+      clearInterval(interval)
+      editorRoot.removeEventListener('scroll', onscroll)
     })
+  })
+
+  presence.onRenderUser(function(store, user, props, children) {
+    var state = store.getState()
+    // Border color
+    var style = props.style || (props.style = {})
+      , color = user.color || '#777'
+    style['border-color'] = color
+
+    // Color picker if user === this user
+    if(user.id == state.session.user.id) {
+      var input = h('input.btn.btn-default',
+      { attributes: {type: 'color', value: color}
+      , 'ev-change': evt => {
+          store.dispatch(authorshipMarkers.action_setColor(evt.currentTarget.value))
+        }
+      })
+     children.push(input)
+    }
   })
 
   register(null, {authorshipMarkersCkeditor: authorshipMarkers})
