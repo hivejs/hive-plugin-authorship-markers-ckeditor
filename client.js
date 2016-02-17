@@ -129,7 +129,8 @@ function setup(plugin, imports, register) {
     // Wire up attribution collection
 
     // on init
-    editableDocument.on('init', authorshipMarkers.attributionsChanged.emit)
+    editableDocument.on('editableInitialized',
+      authorshipMarkers.attributionsChanged.emit)
 
     // if this user makes changes
     editableDocument.on('update', function(edit) {
