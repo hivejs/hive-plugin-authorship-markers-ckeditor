@@ -54,7 +54,13 @@ function setup(plugin, imports, register) {
     if(SET_COLOR === action.type) {
       return {...state, authors: {
         ...state.authors
-      , [action.id]: {...state.authors[action.id], color: action.payload}
+      , [action.id]: {
+          ...state.authors[action.id]
+          , attributes: {
+            ...state.authors[action.id].attributes
+            , color: action.payload
+          }
+        }
       }}
     }
     return state
@@ -184,7 +190,7 @@ function setup(plugin, imports, register) {
     var state = store.getState()
     // Border color
     var style = props.style || (props.style = {})
-      , color = user.color || '#777'
+      , color = user.attributes.color || '#777'
     style['border-color'] = color
 
     // Color picker if user === this user
@@ -211,12 +217,12 @@ function render(store) {
       , state.attributions[author].map(function(section) {
           return h('div.AuthorshipMarkers__Marker', {
             style: {
-              'border-color': state.authors[author].color || '#777'
+              'border-color': state.authors[author].attributes.color || '#777'
             , 'height': section.height+'px'
             , 'top': section.y+'px'
             }
           , attributes: {
-              title: state.authors[author].name
+              title: state.authors[author].attributes.name
             }
           })
         })
