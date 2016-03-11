@@ -70,7 +70,13 @@ function setup(plugin, imports, register) {
     if(SET_COLOR === action.type) {
       return {...state, session: {
         ...state.session
-      , user: {...state.session.user, color: action.payload}
+      , user: {
+        ...state.session.user
+        , attributes: {
+          ...state.session.user.attributes
+          , color: action.payload
+          }
+        }
       }}
     }
     return state
@@ -79,7 +85,9 @@ function setup(plugin, imports, register) {
   var authorshipMarkers = {
     action_setColor: function*(color) {
       var state = ui.store.getState()
-      yield api.action_user_update(state.session.user.id, {...state.session.user, color})
+      yield api.action_user_update(state.session.user.id, {
+        ...state.session.user
+      , attributes: {color}})
       yield {type: SET_COLOR, payload: color, id: state.session.user.id}
     }
   , action_loadUser: function*(userId) {
