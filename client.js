@@ -21,7 +21,7 @@ var vdom = require('virtual-dom')
   , nodeAt = require('domnode-at-path')
   , AtomicEmitter = require('atomic-emitter')
 
-const SET_COLOR = 'AUTHORSHIPMARKERSCKEDITOR_SET_COLOR'
+const SET_COLOR = 'AUTHORCOLORS_SET_COLOR' // Foreign action, see hive-plugin-author-colors
 const LOAD_USER = 'AUTHORSHIPMARKERSCKEDITOR_LOAD_USER'
 const UPDATE_ATTRIBUTIONS = 'AUTHORSHIPMARKERSCKEDITOR_UPDATE_ATTRIBUTIONSR'
 
@@ -51,6 +51,7 @@ function setup(plugin, imports, register) {
     if(UPDATE_ATTRIBUTIONS === action.type) {
       return {...state, attributions: action.payload}
     }
+    // Hook into hive-plugin-author-colors
     if(SET_COLOR === action.type) {
       return {...state, authors: {
         ...state.authors
@@ -66,29 +67,8 @@ function setup(plugin, imports, register) {
     return state
   }
 
-  ui.reduxRootReducers.push((state, action) => {
-    if(SET_COLOR === action.type) {
-      return {...state, session: {
-        ...state.session
-      , user: {
-        ...state.session.user
-        , attributes: {
-          ...state.session.user.attributes
-          , color: action.payload
-          }
-        }
-      }}
-    }
-    return state
-  })
-
   var authorshipMarkers = {
-    action_setColor: function*(color) {
-      var state = ui.store.getState()
-      yield api.action_user_update(state.session.user.id, {color})
-      yield {type: SET_COLOR, payload: color, id: state.session.user.id}
-    }
-  , action_loadUser: function*(userId) {
+    action_loadUser: function*(userId) {
       var user = yield api.action_user_get(userId)
       return yield {type: LOAD_USER, payload: user}
     }
@@ -190,25 +170,6 @@ function setup(plugin, imports, register) {
       clearInterval(interval)
       editorRoot.removeEventListener('scroll', onscroll)
     })
-  })
-
-  presence.onRenderUser(function(store, user, props, children) {
-    var state = store.getState()
-    // Border color
-    var style = props.style || (props.style = {})
-      , color = user.attributes.color || '#777'
-    style['border-color'] = color
-
-    // Color picker if user === this user
-    if(user.id == state.session.user.id) {
-      var input = h('input.btn.btn-default',
-      { attributes: {type: 'color', value: color}
-      , 'ev-change': evt => {
-          store.dispatch(authorshipMarkers.action_setColor(evt.currentTarget.value))
-        }
-      })
-     children.push(input)
-    }
   })
 
   register(null, {authorshipMarkersCkeditor: authorshipMarkers})

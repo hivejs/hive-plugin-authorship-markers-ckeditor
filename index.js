@@ -18,18 +18,13 @@
 var path = require('path')
 
 module.exports = setup
-module.exports.consumes = ['ui', 'hooks']
+module.exports.consumes = ['ui']
 
 function setup(plugin, imports, register) {
   var ui = imports.ui
-    , hooks = imports.hooks
 
   ui.registerModule(path.join(__dirname, 'client.js'))
   ui.registerStylesheet(path.join(__dirname, 'css/index.css'))
-
-  hooks.on('models:load', function*(models) {
-    models.user.attributes['color'] = 'string'
-  })
 
   register()
 }
