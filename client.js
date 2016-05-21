@@ -51,7 +51,7 @@ function setup(plugin, imports, register) {
       return {...state, attributions: action.payload}
     }
     // Hook into hive-plugin-author-colors
-    if(SET_COLOR === action.type) {
+    if(SET_COLOR === action.type && state.authors[action.id]) {
       return {...state, authors: {
         ...state.authors
       , [action.id]: {
