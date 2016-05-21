@@ -1,6 +1,6 @@
 {
   "name": "hive-plugin-authorship-markers-ckeditor",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Authorship markers plugin for hive.js",
   "main": "index.js",
   "dependencies": {
